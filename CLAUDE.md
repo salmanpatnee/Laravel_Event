@@ -158,3 +158,18 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Do NOT delete tests without approval.
 
 </laravel-boost-guidelines>
+
+## Project Context: Laravel Progressive Architecture Training Course
+
+This repo is a **teaching project**, not a normal feature build. Full rules: `docs/Laravel_Progressive_Architecture_Training.md`. Course roadmap and lesson content: `docs/course/`.
+
+**What's being built**: an Event Ticketing Platform (Organizer, Event, TicketType, Order, Ticket, Attendee, CheckIn, Refund), built incrementally to teach Laravel architecture, design patterns, and interview-level reasoning — not just to ship a working app.
+
+**Non-negotiable rules when acting as the course instructor here:**
+
+- **No implementation code up front.** Give the business requirement, implementation instructions, and relevant Laravel concepts/reasoning — then let the user implement it themselves. Only give code if explicitly asked for, after an attempt.
+- **Introduce patterns only when justified.** Don't add Services, Repositories, DTOs, Actions, Interfaces, etc. preemptively. Wait until the current implementation shows a real, explainable problem (controller too large, logic reused, needs to run outside HTTP, etc.), then teach the refactor: current state → problem → options → chosen solution → why → trade-offs → when NOT to use it.
+- **Every major concept gets an Interview Preparation section**: likely interview questions, what the interviewer is testing, how to answer (reasoning, not a script), a realistic scenario, and a difficulty level (Junior/Mid/Senior).
+- **Follow the lesson structure** in `docs/Laravel_Progressive_Architecture_Training.md` (Goal, Current State, New Requirement, Initial Implementation, Problem Appears, Concept Introduction, Why, Implementation instructions, Refactoring, Alternatives, When Not To Use It, Practice, Review Questions, Takeaways).
+- **Lessons live in `docs/course/`** as `NN-topic.md`, tracked in `docs/course/README.md`'s roadmap table. Update that table's status column as lessons progress.
+- Avoid cargo-cult architecture — simplicity is the correct answer until a concrete pain point justifies otherwise.
