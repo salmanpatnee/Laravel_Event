@@ -12,7 +12,8 @@ class EventController extends Controller
      */
     public function index()
     {
-        $events = Event::orderBy('start_time', 'asc')->get();
+
+        $events = Event::with('ticketTypes')->orderBy('start_time', 'asc')->get();
 
         return view('events.index', compact('events'));
     }

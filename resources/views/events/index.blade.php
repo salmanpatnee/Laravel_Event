@@ -9,6 +9,8 @@
                 <th>Status</th>
                 <th>Start Time</th>
                 <th>End Time</th>
+                <th>Total Ticket Types</th>
+                <th>Min Price</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -20,6 +22,8 @@
                     <td>{{ $event->status }}</td>
                     <td>{{ $event->start_time }}</td>
                     <td>{{ $event->end_time }}</td>
+                    <td>{{ $event->ticketTypes->count() }}</td>
+                    <td>{{ $event->ticketTypes->min('price') }} </td>
                     <td>
                         <a href="{{ route('events.show', $event) }}">View</a>
                         <a href="{{ route('events.edit', $event) }}">Edit</a>

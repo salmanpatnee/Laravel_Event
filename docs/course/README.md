@@ -23,8 +23,8 @@ later lessons may shift based on what the app actually needs by that point.
 | # | Lesson | Status |
 |---|--------|--------|
 | 01 | [Foundation](01-foundation.md) — routing, controllers, Blade, Event model/migration, basic CRUD | Ready |
-| 02 | [Database & Relationships](02-database-relationships.md) — TicketType, Eloquent relationships, eager loading, N+1 | Ready |
-| 03 | Authentication — Organizer vs Attendee users | Planned |
+| 02 | [Database & Relationships](02-database-relationships.md) — TicketType, Eloquent relationships, eager loading, N+1 | Implemented |
+| 03 | [Authentication](03-authentication.md) — Organizer vs Attendee users | Ready |
 | 04 | Authorization — Policies/Gates for event ownership | Planned |
 | 05 | Validation — Form Requests | Planned |
 | 06 | Purchasing Flow — inventory, transactions, row locking | Planned |
