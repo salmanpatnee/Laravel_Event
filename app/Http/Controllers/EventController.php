@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\RoleEnum;
 use Illuminate\Http\Request;
 
 class EventController extends Controller
@@ -13,7 +14,7 @@ class EventController extends Controller
     public function index()
     {
 
-        $events = Event::with('ticketTypes')->orderBy('start_time', 'asc')->get();
+        $events = Event::with('ticketTypes', 'organizer')->orderBy('start_time', 'asc')->get();
 
         return view('events.index', compact('events'));
     }
@@ -23,6 +24,8 @@ class EventController extends Controller
      */
     public function create()
     {
+        abort_unless(auth()->user()->role === RoleEnum::Organizer, 403);
+
         return view('events.create');
     }
 
@@ -31,7 +34,9 @@ class EventController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
+        abort_unless(auth()->user()->role === RoleEnum::Organizer, 403);
+
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'venue' => 'required|string|max:255',
@@ -40,7 +45,7 @@ class EventController extends Controller
             'end_time' => 'required|date|after:start_time',
         ]);
 
-        $event = Event::create($request->all());
+        $event = $request->user()->events()->create($validated);
 
         return redirect()->route('events.show', $event)->with('success', 'Event created successfully.');
     }
@@ -58,6 +63,8 @@ class EventController extends Controller
      */
     public function edit(Event $event)
     {
+        abort_unless($event->user_id === auth()->id() && auth()->user()->role === RoleEnum::Organizer, 403);
+
         return view('events.edit', compact('event'));
     }
 
@@ -66,7 +73,9 @@ class EventController extends Controller
      */
     public function update(Request $request, Event $event)
     {
-        $request->validate([
+        abort_unless($event->user_id === auth()->id(), 403);
+
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'venue' => 'required|string|max:255',
@@ -75,7 +84,7 @@ class EventController extends Controller
             'end_time' => 'required|date|after:start_time',
         ]);
 
-        $event->update($request->all());
+        $event->update($validated);
 
         return redirect()->route('events.show', $event)->with('success', 'Event updated successfully.');
     }
@@ -85,6 +94,8 @@ class EventController extends Controller
      */
     public function destroy(Event $event)
     {
+        abort_unless($event->user_id === auth()->id(), 403);
+
         $event->delete();
 
         return redirect()->route('events.index')->with('success', 'Event deleted successfully.');
@@ -92,6 +103,8 @@ class EventController extends Controller
 
     public function toggleStatus(Event $event)
     {
+        abort_unless($event->user_id === auth()->id(), 403);
+
         $event->status = $event->status === 'draft' ? 'published' : 'draft';
 
         $event->save();

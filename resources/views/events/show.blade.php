@@ -5,6 +5,7 @@
     <p><strong>Status:</strong> {{ $event->status }}</p>
     <p><strong>Start Time:</strong> {{ $event->start_time }}</p>
     <p><strong>End Time:</strong> {{ $event->end_time }}</p>
+    <p><strong>Event By:</strong> {{ $event->organizer->name }}</p>
 
     <h2>Ticket Types</h2>
     <table border="1">

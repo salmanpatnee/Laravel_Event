@@ -11,6 +11,7 @@
                 <th>End Time</th>
                 <th>Total Ticket Types</th>
                 <th>Min Price</th>
+                <th>Event By</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -24,6 +25,7 @@
                     <td>{{ $event->end_time }}</td>
                     <td>{{ $event->ticketTypes->count() }}</td>
                     <td>{{ $event->ticketTypes->min('price') }} </td>
+                    <td>{{ $event->organizer->name }}</td>
                     <td>
                         <a href="{{ route('events.show', $event) }}">View</a>
                         <a href="{{ route('events.edit', $event) }}">Edit</a>
