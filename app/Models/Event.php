@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Database\Factories\EventFactory;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -30,11 +29,4 @@ class Event extends Model
     {
         return $this->hasMany(TicketType::class);
     }
-
-    // protected function lowestPrice(): Attribute
-    // {
-    //     return Attribute::make(
-    //         get: fn () => $this->ticketTypes->min('price'),
-    //     );
-    // }
 }
