@@ -30,7 +30,8 @@
             @endforelse
         </tbody>
     </table>
-
-    <a href="{{ route('events.edit', $event) }}">Edit</a>
+    @can('update', $event)
+        <a href="{{ route('events.edit', $event) }}">Edit</a>
+    @endcan
     <a href="{{ route('events.index') }}">Back to Events</a>
 </x-layouts.app>

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
-use App\RoleEnum;
 use Illuminate\Http\Request;
 
 class EventController extends Controller
@@ -13,7 +12,6 @@ class EventController extends Controller
      */
     public function index()
     {
-
         $events = Event::with('ticketTypes', 'organizer')->orderBy('start_time', 'asc')->get();
 
         return view('events.index', compact('events'));
@@ -24,7 +22,7 @@ class EventController extends Controller
      */
     public function create()
     {
-        abort_unless(auth()->user()->role === RoleEnum::Organizer, 403);
+        $this->authorize('create', Event::class);
 
         return view('events.create');
     }
@@ -34,7 +32,7 @@ class EventController extends Controller
      */
     public function store(Request $request)
     {
-        abort_unless(auth()->user()->role === RoleEnum::Organizer, 403);
+        $this->authorize('create', Event::class);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -63,7 +61,7 @@ class EventController extends Controller
      */
     public function edit(Event $event)
     {
-        abort_unless($event->user_id === auth()->id() && auth()->user()->role === RoleEnum::Organizer, 403);
+        $this->authorize('update', $event);
 
         return view('events.edit', compact('event'));
     }
@@ -73,7 +71,7 @@ class EventController extends Controller
      */
     public function update(Request $request, Event $event)
     {
-        abort_unless($event->user_id === auth()->id(), 403);
+        $this->authorize('update', $event);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -94,7 +92,7 @@ class EventController extends Controller
      */
     public function destroy(Event $event)
     {
-        abort_unless($event->user_id === auth()->id(), 403);
+        $this->authorize('delete', $event);
 
         $event->delete();
 
@@ -103,7 +101,7 @@ class EventController extends Controller
 
     public function toggleStatus(Event $event)
     {
-        abort_unless($event->user_id === auth()->id(), 403);
+        $this->authorize('update', $event);
 
         $event->status = $event->status === 'draft' ? 'published' : 'draft';
 

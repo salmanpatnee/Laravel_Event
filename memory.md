@@ -1,47 +1,50 @@
 # Memory — Laravel Progressive Architecture Training Course
 
-Last updated: 2026-08-08
+Last updated: 2026-08-10
 
 ## What was built
 
-- **Course docs**: `docs/Laravel_Progressive_Architecture_Training.md` (full course philosophy/rules), `docs/course/README.md` (roadmap), `docs/course/01-foundation.md`, `docs/course/02-database-relationships.md`.
-- **CLAUDE.md**: added a "Project Context" section documenting the course rules (no code before instructions, justified-only pattern introduction, interview-prep sections per concept, lesson structure, roadmap tracking).
-- **Lesson 01 (Foundation) — implemented and committed** (`6743a3c`):
-  - Migration `database/migrations/2026_08_08_101419_create_events_table.php` for `events` (name, description nullable, venue, status default draft, start_time, end_time, timestamps).
-  - `app/Models/Event.php` — `$fillable` (protected), casts `start_time`/`end_time` to `datetime`.
-  - `app/Http/Controllers/EventController.php` — full resource controller, plus a `toggleStatus` custom route (`POST events/{event}/toggle-status`) as the Practice stretch goal.
-  - Blade views under `resources/views/events/` (`index`, `show`, `create`, `edit`) using a shared `resources/views/components/layouts/app.blade.php` layout component (`<x-layouts.app>`), with `$errors`/`old()` support.
-  - `database/factories/EventFactory.php` and `database/seeders/EventSeeder.php`.
-  - 5 events seeded into the local DB via tinker for testing.
-  - Ran `vendor/bin/pint --dirty` — fixed style in `Event.php`, the migration, `EventSeeder.php`.
-- **Lesson 02 (Database & Relationships) — written, not yet implemented** (`e46a870`): instructions for adding `TicketType` (belongs to `Event`), `hasMany`/`belongsTo`, seeding multiple ticket types per event, deliberately observing an N+1 query on the events index, then fixing it with `with('ticketTypes')` (and comparing to `withCount()`). Marked "Ready" in `docs/course/README.md`.
+- **Telescope**: installed `laravel/telescope`, registered `App\Providers\TelescopeServiceProvider` in `bootstrap/providers.php` (unrelated to the course, local debugging aid). Committed separately (`b39d97a`).
+- **Lesson 03 (Authentication: Organizer vs Attendee) — implemented, reviewed, and committed/pushed** (`c991c28`, pushed to `origin/main`):
+  - `app/RoleEnum.php` — `Organizer`/`Attendee` string-backed enum with a `label()` method.
+  - `role` column added directly to the base `0001_01_01_000000_create_users_table.php` migration (string, default `attendee`) — the lesson explicitly sanctions this since `users` never shipped. A separate `add_role_into_users_table` migration was created first, then consolidated back into the base migration.
+  - `user_id` (organizer FK) added by **editing** `database/migrations/2026_08_08_101419_create_events_table.php` directly, even though that migration already shipped in Lessons 01–02 — flagged in review as a lesson-rule violation (should have been a new migration), left uncorrected by user choice.
+  - `Event::organizer()` (`belongsTo(User::class, 'user_id')`), `User::events()` (`hasMany`).
+  - `app/Http/Controllers/Auth/RegisterController.php` and `LoginController.php` — manual session auth: register validates + `Rule::enum(RoleEnum::class)`, login uses `Auth::attempt()` + `$request->session()->regenerate()`, logout uses `Auth::logout()` + `invalidate()` + `regenerateToken()`.
+  - `resources/views/auth/register.blade.php` and `login.blade.php` — reuse `<x-layouts.app>`, plain HTML forms matching existing `events/create.blade.php` style.
+  - `resources/views/components/layouts/app.blade.php` — nav with `@auth`/`@else`: logout form vs. Register/Login links.
+  - `routes/web.php` — `events` resource split: `index`/`show` public via `->only()`, `create/store/edit/update/destroy` + `toggle-status` wrapped in `Route::middleware('auth')->group(...)`.
+  - `bootstrap/app.php` — `$middleware->redirectGuestsTo(fn () => route('login.create'))` (route names are `login.create`/`register.create`, not Laravel's default `login`/`register`).
+  - `EventController` — `create()`/`store()` both role-gate with `abort_unless(auth()->user()->role === RoleEnum::Organizer, 403)`; `edit()` checks ownership + role; `update()`/`destroy()`/`toggleStatus()` check ownership only (`$event->user_id === auth()->id()`); `store()`/`update()` now use `$validated` instead of `$request->all()`.
 
 ## Decisions made
 
-- Course is taught strictly via instructions, not handed-implementation code (per the course's Constraint 1) — user implements, then brings work back for review.
-- Column names diverged from the lesson spec (`start_time`/`end_time` instead of `starts_at`/`ends_at`) — flagged in review but left as-is; not corrected.
-- `status` enum settled on `draft`/`published` only (no `canceled`) for validation — `edit.blade.php` still has a leftover `canceled` `<option>` that was flagged but not yet fixed.
-- `index()` currently orders by `start_time asc`, not `latest()`/`created_at desc` as the lesson specified — flagged, not fixed.
-- `store`/`update` currently return the view directly instead of redirecting (breaks Post/Redirect/Get) — flagged as the most important open issue, not yet fixed.
-- `$request->all()` used for mass assignment instead of `$request->validated()` — flagged, not fixed.
+- Role column name is `role` (not `role_id`) — user initially asked for `role_id` as a string, then explicitly corrected to `role` after noticing the `_id` suffix implies a FK.
+- Organizer FK column is `user_id` (not `organizer_id`), with the relationship method named `organizer()` for readability.
+- Role enforcement pattern across `EventController` write actions is **inconsistent** (`edit()` checks role, `update()`/`destroy()`/`toggleStatus()` don't) — not a security hole since only organizers can own events, but flagged as the exact kind of repetition the course's Lesson 04 (Policies) is meant to address. Left as-is per course philosophy (user fixes on their own initiative).
+- Editing the already-shipped `events` migration (instead of a new migration) was flagged as a rule violation but left uncorrected — user's call.
 
 ## Problems solved
 
-- N/A — no debugging issues hit yet this session; open review findings below are still outstanding.
+- A stray backtick after `create()`'s closing brace in `EventController.php` caused a fatal PHP parse error (whole app broken) — found via `php -l` during re-review, removed.
+- `RegisterController::store()` originally had `'role' => 'required|in:'.RoleEnum::cases()` (string-concatenating an array — always invalid) plus a dead `return $validated;` before user creation — replaced with `Rule::enum(RoleEnum::class)` and removed the dead code.
+- `LoginController::store()` originally called a nonexistent `Auth::generateSession()` — replaced with `$request->session()->regenerate()`.
+- `route('login')` / `route('register')` references (Laravel's default auth route names) didn't match this project's actual route names (`login.create`, `register.create`) — caused `RouteNotFoundException`; fixed in `bootstrap/app.php`'s `redirectGuestsTo` and `resources/views/welcome.blade.php`.
 
 ## Current state
 
-- Lesson 01 code is implemented, reviewed, and committed. It works functionally (CRUD + toggle-status), but has known deviations from the lesson spec (see "Decisions made") that were pointed out in review and left for the user to fix themselves per the course's hands-on philosophy.
-- Lesson 02 is fully written and ready, but **no implementation has started** — no `TicketType` migration/model/factory/relationships exist yet.
-- Git: all work committed on `main`, 2 commits ahead of `origin/main` as of last check (not pushed).
+- Lessons 01–03 all implemented, reviewed, and committed. Lesson 03 is pushed to `origin/main` (`c991c28`), along with the Telescope commit (`b39d97a`) and a session-memory commit (`0d46e61`).
+- Auth flow (register/login/logout), organizer ownership on events, and route protection are functional. Known remaining gaps (not blocking, left for user):
+  - Inconsistent ownership/role-check pattern across `EventController` write actions (see "Decisions made").
+  - `events` migration was edited in place rather than via a new migration.
+  - Older Lesson 01 findings (index ordering, leftover `canceled` status option) — not re-verified this session, status unknown.
+- Working tree was clean and fully pushed as of last check.
 
 ## Next session starts with
 
-The user should implement Lesson 02 (`docs/course/02-database-relationships.md`): create the `TicketType` migration/model/factory, define `Event::ticketTypes()` (hasMany) and `TicketType::event()` (belongsTo), seed multiple ticket types per event, deliberately observe the N+1 query problem on the events index, then fix it with eager loading. Bring the implementation back for review.
-
-Optionally, before starting Lesson 02, the user may want to fix the Lesson 01 review findings (store/update not redirecting, index ordering, leftover `canceled` status option, `validated()` vs `all()`) — not yet done.
+Lesson 04 (Policies) is the natural next step — the course roadmap flags the repeated ownership/role checks in `EventController` as the seed for introducing a `EventPolicy`. Check `docs/course/README.md` for the roadmap status and whether Lesson 04 content has been written yet (as of last check, only Lessons 01–03 existed under `docs/course/`).
 
 ## Open questions
 
-- Should the Lesson 01 review findings be fixed before or after Lesson 02? (Left to user's discretion.)
-- Local commits are ahead of `origin/main` and unpushed — confirm with user before pushing.
+- Should the inconsistent role/ownership checks in `EventController` (edit vs. update/destroy/toggleStatus) be cleaned up before or as part of Lesson 04's Policy refactor?
+- Is Lesson 04 content already drafted, or does it need to be written first (per the course's lesson-authoring rules in `CLAUDE.md`)?
