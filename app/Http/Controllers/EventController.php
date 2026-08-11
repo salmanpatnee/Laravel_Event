@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreEventRequest;
+use App\Http\Requests\UpdateEventRequest;
 use App\Models\Event;
-use Illuminate\Http\Request;
 
 class EventController extends Controller
 {
@@ -30,20 +31,11 @@ class EventController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreEventRequest $request)
     {
         $this->authorize('create', Event::class);
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'venue' => 'required|string|max:255',
-            'status' => 'required|in:draft,published',
-            'start_time' => 'required|date',
-            'end_time' => 'required|date|after:start_time',
-        ]);
-
-        $event = $request->user()->events()->create($validated);
+        $event = $request->user()->events()->create($request->validated());
 
         return redirect()->route('events.show', $event)->with('success', 'Event created successfully.');
     }
@@ -69,20 +61,11 @@ class EventController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Event $event)
+    public function update(UpdateEventRequest $request, Event $event)
     {
         $this->authorize('update', $event);
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'venue' => 'required|string|max:255',
-            'status' => 'required|in:draft,published',
-            'start_time' => 'required|date',
-            'end_time' => 'required|date|after:start_time',
-        ]);
-
-        $event->update($validated);
+        $event->update($request->validated());
 
         return redirect()->route('events.show', $event)->with('success', 'Event updated successfully.');
     }
