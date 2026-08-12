@@ -32,20 +32,22 @@ class OrderController extends Controller
     /**
      * Store a newly created resource in storage.
      *
-     * Naive purchase flow: no transaction, no row locking. This has a
-     * check-then-act race condition under concurrent requests — that is
-     * fixed in a later lesson step, not here.
+     * Concurrency-safe purchase flow: the ticket_types row is re-fetched
+     * with lockForUpdate() inside the transaction, so a second concurrent
+     * request blocks until the first commits (or rolls back) before it can
+     * read availability — closing the check-then-act race.
      */
     public function store(StoreOrderRequest $request)
     {
         $this->authorize('create', Order::class);
 
-        
-        $ticketType = TicketType::findOrFail($request->validated('ticket_type_id'));
-        DB::transaction(function () use ($request, $ticketType) {
+        $ticketTypeId = $request->validated('ticket_type_id');
+
+        return DB::transaction(function () use ($request, $ticketTypeId) {
+            $ticketType = TicketType::lockForUpdate()->findOrFail($ticketTypeId);
             $quantity = (int) $request->validated('quantity');
             $available = $ticketType->remaining_quantity;
-    
+
             if ($quantity > $available) {
                 throw ValidationException::withMessages([
                     'quantity' => "Only {$available} ticket(s) remaining for {$ticketType->name}.",
@@ -65,9 +67,8 @@ class OrderController extends Controller
                 ]);
             }
 
-            });
             return redirect()->route('events.show', $ticketType->event_id)->with('success', 'Tickets purchased successfully.');
-
+        });
     }
 
     /**
