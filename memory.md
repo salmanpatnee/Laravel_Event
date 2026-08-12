@@ -1,50 +1,47 @@
 # Memory — Laravel Progressive Architecture Training Course
 
-Last updated: 2026-08-10
+Last updated: 2026-08-12
 
 ## What was built
 
-- **Telescope**: installed `laravel/telescope`, registered `App\Providers\TelescopeServiceProvider` in `bootstrap/providers.php` (unrelated to the course, local debugging aid). Committed separately (`b39d97a`).
-- **Lesson 03 (Authentication: Organizer vs Attendee) — implemented, reviewed, and committed/pushed** (`c991c28`, pushed to `origin/main`):
-  - `app/RoleEnum.php` — `Organizer`/`Attendee` string-backed enum with a `label()` method.
-  - `role` column added directly to the base `0001_01_01_000000_create_users_table.php` migration (string, default `attendee`) — the lesson explicitly sanctions this since `users` never shipped. A separate `add_role_into_users_table` migration was created first, then consolidated back into the base migration.
-  - `user_id` (organizer FK) added by **editing** `database/migrations/2026_08_08_101419_create_events_table.php` directly, even though that migration already shipped in Lessons 01–02 — flagged in review as a lesson-rule violation (should have been a new migration), left uncorrected by user choice.
-  - `Event::organizer()` (`belongsTo(User::class, 'user_id')`), `User::events()` (`hasMany`).
-  - `app/Http/Controllers/Auth/RegisterController.php` and `LoginController.php` — manual session auth: register validates + `Rule::enum(RoleEnum::class)`, login uses `Auth::attempt()` + `$request->session()->regenerate()`, logout uses `Auth::logout()` + `invalidate()` + `regenerateToken()`.
-  - `resources/views/auth/register.blade.php` and `login.blade.php` — reuse `<x-layouts.app>`, plain HTML forms matching existing `events/create.blade.php` style.
-  - `resources/views/components/layouts/app.blade.php` — nav with `@auth`/`@else`: logout form vs. Register/Login links.
-  - `routes/web.php` — `events` resource split: `index`/`show` public via `->only()`, `create/store/edit/update/destroy` + `toggle-status` wrapped in `Route::middleware('auth')->group(...)`.
-  - `bootstrap/app.php` — `$middleware->redirectGuestsTo(fn () => route('login.create'))` (route names are `login.create`/`register.create`, not Laravel's default `login`/`register`).
-  - `EventController` — `create()`/`store()` both role-gate with `abort_unless(auth()->user()->role === RoleEnum::Organizer, 403)`; `edit()` checks ownership + role; `update()`/`destroy()`/`toggleStatus()` check ownership only (`$event->user_id === auth()->id()`); `store()`/`update()` now use `$validated` instead of `$request->all()`.
+- **Tailwind CSS wired up and applied** — `resources/views/components/layouts/app.blade.php` was missing `@vite('resources/css/app.css')` entirely, so Tailwind (already a devDependency) was never actually loading; added it plus a styled nav/flash/error block. Styled `events/index`, `events/show`, `events/create`, `events/edit`, `auth/login`, `auth/register` with a consistent card/table/form look (gray-900 buttons, gray-200 borders, status badges). `node_modules`/`package-lock.json` were missing — ran `npm install` then `npm run build`. Committed as `900225c` (events pages) and `bf4c8ba` (auth pages).
+- **Lesson 06 — Purchasing Flow (naive version) — implemented and committed** (`b06f543`, **not yet pushed**):
+  - `docs/course/06-purchasing-flow.md` already existed (untracked, not yet committed) with the full lesson writeup.
+  - `Order`/`Ticket` models, `OrderStatusEnum`, `OrderPolicy` (only `Attendee` role can `create`), `orders`/`tickets` migrations (tickets cascade-delete on order/ticket-type; UUID `code` column), `OrderFactory`/`TicketFactory` filled in.
+  - `StoreOrderRequest` fixed — was validating `event_id`/`status` (wrong fields, and `status` should never come from the client); now validates `ticket_type_id`/`quantity`.
+  - `events/show.blade.php` purchase form fixed — quantity input had a broken array-keyed name (`quantity[{{ $ticketType->id }}]`) alongside a separate hidden `ticket_type_id`; simplified to a plain `quantity` field.
+  - `OrderController::store()` — naive flow per lesson §4: load `TicketType`, `Ticket::where(...)->count()` for sold, reject via `ValidationException` if requested qty exceeds availability, else create `Order` (server-computed `total_amount`) + `Ticket` rows in a loop. **Deliberately no `DB::transaction()`/`lockForUpdate()`** — that's the next lesson step.
+  - `tests/Feature/OrderPurchaseTest.php` — 3 tests: happy-path purchase, over-quantity rejection, and a race-condition test that **intentionally fails**, proving the naive flow oversells a `TicketType` with `quantity = 1` (`Failed asserting that 2 is identical to 1`).
+- **Bug fix bundled into `b06f543`**: `events/show.blade.php`'s "Quantity Remaining" column was showing `TicketType.quantity` (total capacity) instead of remaining stock. Added `TicketType::tickets()` relation (was missing) and a `remainingQuantity` `Attribute` accessor (exposed as `$ticketType->remaining_quantity`); `EventController::show()` now eager-loads `ticketTypes` with `withCount('tickets')`.
 
 ## Decisions made
 
-- Role column name is `role` (not `role_id`) — user initially asked for `role_id` as a string, then explicitly corrected to `role` after noticing the `_id` suffix implies a FK.
-- Organizer FK column is `user_id` (not `organizer_id`), with the relationship method named `organizer()` for readability.
-- Role enforcement pattern across `EventController` write actions is **inconsistent** (`edit()` checks role, `update()`/`destroy()`/`toggleStatus()` don't) — not a security hole since only organizers can own events, but flagged as the exact kind of repetition the course's Lesson 04 (Policies) is meant to address. Left as-is per course philosophy (user fixes on their own initiative).
-- Editing the already-shipped `events` migration (instead of a new migration) was flagged as a rule violation but left uncorrected — user's call.
+- User explicitly overrode the course's "no implementation code up front" rule for the naive purchase flow ("Write the naive solution. I am explicitly telling you to do so.") — code was written directly rather than guiding the user to implement it.
+- Race-condition test: a real dual-PDO-connection approach against a shared SQLite file was tried first (per the lesson's literal suggestion) but hit SQLite's own shared-cache/whole-database locking (`SQLSTATE[HY000]: database is locked`) even with WAL mode + busy_timeout — a SQLite testing artifact, not the actual bug. Replaced with manually interleaving the same read-then-write steps the controller performs, on the single default `:memory:` test connection — deterministic, no infrastructure fighting, same proof.
+- `OrderController::store()` still hand-computes `quantity - ticketsSold` instead of using `TicketType::remaining_quantity` — flagged as duplicated logic in conversation but **not yet refactored**, pending user decision.
 
 ## Problems solved
 
-- A stray backtick after `create()`'s closing brace in `EventController.php` caused a fatal PHP parse error (whole app broken) — found via `php -l` during re-review, removed.
-- `RegisterController::store()` originally had `'role' => 'required|in:'.RoleEnum::cases()` (string-concatenating an array — always invalid) plus a dead `return $validated;` before user creation — replaced with `Rule::enum(RoleEnum::class)` and removed the dead code.
-- `LoginController::store()` originally called a nonexistent `Auth::generateSession()` — replaced with `$request->session()->regenerate()`.
-- `route('login')` / `route('register')` references (Laravel's default auth route names) didn't match this project's actual route names (`login.create`, `register.create`) — caused `RouteNotFoundException`; fixed in `bootstrap/app.php`'s `redirectGuestsTo` and `resources/views/welcome.blade.php`.
+- `@vite` directive missing from the layout — Tailwind was installed but never loaded; nothing styled anywhere until this was added.
+- `node_modules` absent — `npm install` had never been run in this environment.
+- SQLite `SQLSTATE[HY000]: database is locked` when trying genuine two-PDO-connection interleaving for the race test — see decision above.
+- "Quantity Remaining" showing total capacity, not remaining stock — see bug fix above.
 
 ## Current state
 
-- Lessons 01–03 all implemented, reviewed, and committed. Lesson 03 is pushed to `origin/main` (`c991c28`), along with the Telescope commit (`b39d97a`) and a session-memory commit (`0d46e61`).
-- Auth flow (register/login/logout), organizer ownership on events, and route protection are functional. Known remaining gaps (not blocking, left for user):
-  - Inconsistent ownership/role-check pattern across `EventController` write actions (see "Decisions made").
-  - `events` migration was edited in place rather than via a new migration.
-  - Older Lesson 01 findings (index ordering, leftover `canceled` status option) — not re-verified this session, status unknown.
-- Working tree was clean and fully pushed as of last check.
+- Lessons 01–06 implemented. **Local `main` is 5 commits ahead of `origin/main`** (still at `c991c28`): `cc47c01` (Lesson 04), `8abce4f` (Lesson 05), `900225c` (style events), `bf4c8ba` (style auth), `b06f543` (Lesson 06). None pushed.
+- `php artisan test --compact`: 4 pass, 1 **intentionally** fails (the race-condition proof) — expected red, awaiting the `DB::transaction()`/`lockForUpdate()` fix (lesson §8) to go green.
+- Working tree not clean: `docs/course/README.md` (modified, roadmap likely needs Lesson 06 status update) and `memory.md` are unstaged; `docs/course/06-purchasing-flow.md` is untracked. None committed yet — user was told this explicitly after the `b06f543` commit.
+- Carried over from before, still unresolved/unverified: whether to push commits to `origin/main` (asked multiple times now, never confirmed); `EventPolicy::delete()` duplicates `update()`'s expression rather than deferring to it; older Lesson 01 findings (index ordering, leftover `canceled` status option).
 
 ## Next session starts with
 
-Lesson 04 (Policies) is the natural next step — the course roadmap flags the repeated ownership/role checks in `EventController` as the seed for introducing a `EventPolicy`. Check `docs/course/README.md` for the roadmap status and whether Lesson 04 content has been written yet (as of last check, only Lessons 01–03 existed under `docs/course/`).
+Two independent threads, either can go first:
+1. **Lesson 06 continuation**: implement `DB::transaction()` + `TicketType::where(...)->lockForUpdate()->first()` in `OrderController::store()` per lesson §8, then re-run `OrderPurchaseTest` — the race test should flip to passing. Consider also refactoring to use `$ticketType->remaining_quantity` at the same time (same underlying read, just deduplicated) — but note the accessor's fallback query must happen *inside* the locked read, not before it.
+2. **Housekeeping**: decide whether to commit `docs/course/README.md` + `docs/course/06-purchasing-flow.md` (roadmap/lesson doc), and whether to finally push the 5 unpushed commits.
 
 ## Open questions
 
-- Should the inconsistent role/ownership checks in `EventController` (edit vs. update/destroy/toggleStatus) be cleaned up before or as part of Lesson 04's Policy refactor?
-- Is Lesson 04 content already drafted, or does it need to be written first (per the course's lesson-authoring rules in `CLAUDE.md`)?
+- Push of the 5 unpushed commits (`cc47c01` through `b06f543`) still unconfirmed — don't assume `origin/main` is current without checking.
+- Should `EventPolicy::delete()`'s duplication of `update()`'s logic be cleaned up before continuing, or left as a deliberate teaching artifact?
+- Should `OrderController::store()` be refactored to use `TicketType::remaining_quantity` before or alongside the `lockForUpdate()` fix?

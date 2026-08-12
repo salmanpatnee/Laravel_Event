@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Ticket;
 use App\Models\TicketType;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -39,31 +40,34 @@ class OrderController extends Controller
     {
         $this->authorize('create', Order::class);
 
+        
         $ticketType = TicketType::findOrFail($request->validated('ticket_type_id'));
-        $quantity = (int) $request->validated('quantity');
-        $available = $ticketType->remaining_quantity;
+        DB::transaction(function () use ($request, $ticketType) {
+            $quantity = (int) $request->validated('quantity');
+            $available = $ticketType->remaining_quantity;
+    
+            if ($quantity > $available) {
+                throw ValidationException::withMessages([
+                    'quantity' => "Only {$available} ticket(s) remaining for {$ticketType->name}.",
+                ]);
+            }
 
-        if ($quantity > $available) {
-            throw ValidationException::withMessages([
-                'quantity' => "Only {$available} ticket(s) remaining for {$ticketType->name}.",
+            $order = Auth::user()->orders()->create([
+                'event_id' => $ticketType->event_id,
+                'total_amount' => $ticketType->price * $quantity,
             ]);
-        }
 
-        $order = Auth::user()->orders()->create([
-            'event_id' => $ticketType->event_id,
-            'total_amount' => $ticketType->price * $quantity,
-        ]);
+            for ($i = 0; $i < $quantity; $i++) {
+                Ticket::create([
+                    'order_id' => $order->id,
+                    'ticket_type_id' => $ticketType->id,
+                    'code' => Str::uuid(),
+                ]);
+            }
 
+            });
+            return redirect()->route('events.show', $ticketType->event_id)->with('success', 'Tickets purchased successfully.');
 
-        for ($i = 0; $i < $quantity; $i++) {
-            Ticket::create([
-                'order_id' => $order->id,
-                'ticket_type_id' => $ticketType->id,
-                'code' => Str::uuid(),
-            ]);
-        }
-
-        return redirect()->route('events.show', $ticketType->event_id)->with('success', 'Tickets purchased successfully.');
     }
 
     /**
