@@ -28,7 +28,7 @@ later lessons may shift based on what the app actually needs by that point.
 | 04 | [Authorization](04-authorization.md) — Policies for event ownership | Ready |
 | 05 | [Validation](05-validation.md) — Form Requests | Ready |
 | 06 | [Purchasing Flow](06-purchasing-flow.md) — inventory, transactions, row locking | Implemented |
-| 07 | Service Extraction — Service vs Action | Planned |
+| 07 | [Service Extraction](07-service-extraction.md) — Service vs Action | Ready |
 | 08 | Events & Listeners — `OrderPlaced` | Planned |
 | 09 | Queues & Jobs — PDF generation, email, failed jobs | Planned |
 | 10 | Notifications & Mail | Planned |
