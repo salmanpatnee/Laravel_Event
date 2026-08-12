@@ -1,6 +1,7 @@
 <?php
 
-use App\Models\Event;
+use App\Models\Order;
+use App\Models\TicketType;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -12,12 +13,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('ticket_types', function (Blueprint $table) {
+        Schema::create('tickets', function (Blueprint $table) {
             $table->id();
-            $table->foreignIdFor(Event::class)->constrained()->cascadeOnDelete();
-            $table->string('name');
-            $table->decimal('price', 8, 2);
-            $table->unsignedInteger('quantity');
+            $table->foreignIdFor(Order::class)->constrained()->cascadeOnDelete();
+            $table->foreignIdFor(TicketType::class)->constrained()->cascadeOnDelete();
+            $table->uuid('code');
             $table->timestamps();
         });
     }
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('ticket_types');
+        Schema::dropIfExists('tickets');
     }
 };

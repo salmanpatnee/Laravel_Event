@@ -50,7 +50,7 @@
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3 font-medium text-gray-900">{{ $ticketType->name }}</td>
                         <td class="px-4 py-3 text-gray-600">{{ $ticketType->price }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ $ticketType->quantity }}</td>
+                        <td class="px-4 py-3 text-gray-600">{{ $ticketType->remaining_quantity }}</td>
                         <td class="px-4 py-3">
                             @can('create', App\Models\Order::class)
                                 <form method="POST" action="{{ route('orders.store') }}"
@@ -58,8 +58,8 @@
                                     @csrf
                                     <input type="hidden" name="event_id" value="{{ $event->id }}">
                                     <input type="hidden" name="ticket_type_id" value="{{ $ticketType->id }}">
-                                    <input type="number" name="quantity" min="1" max="{{ $ticketType->quantity }}"
-                                        value="1"
+                                    <input type="number" name="quantity" min="1"
+                                        max="{{ $ticketType->remaining_quantity }}" value="1"
                                         class="w-16 rounded-md border border-gray-300 px-2 py-1 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500">
                                     <button type="submit"
                                         class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700">

@@ -45,6 +45,8 @@ class EventController extends Controller
      */
     public function show(Event $event)
     {
+        $event->load(['ticketTypes' => fn ($query) => $query->withCount('tickets')]);
+
         return view('events.show', compact('event'));
     }
 
