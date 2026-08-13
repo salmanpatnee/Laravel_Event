@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\OrderPlaced;
 use App\Exceptions\TicketUnavailableException;
 use App\Models\Order;
 use App\Models\Ticket;
@@ -13,7 +14,7 @@ class TicketOrderService
 {
     public function order(int $ticketTypeId, int $quantity, int $userId): Order
     {
-        return DB::transaction(function () use ($ticketTypeId, $quantity, $userId) {
+        $order = DB::transaction(function () use ($ticketTypeId, $quantity, $userId) {
             $ticketType = TicketType::lockForUpdate()->findOrFail($ticketTypeId);
 
             $available = $ticketType->remaining_quantity;
@@ -38,5 +39,9 @@ class TicketOrderService
 
             return $order;
         });
+
+        OrderPlaced::dispatch($order);
+
+        return $order;
     }
 }
