@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\OrderPlaced;
 use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
 use App\Services\TicketOrderService;
@@ -9,11 +10,9 @@ use Illuminate\Support\Facades\Auth;
 
 class OrderController extends Controller
 {
-    public $ticketOrderService;
 
-    public function __construct(TicketOrderService $ticketOrderService)
+    public function __construct(public TicketOrderService $ticketOrderService)
     {
-        $this->ticketOrderService = $ticketOrderService;
     }
 
     /**
@@ -48,6 +47,8 @@ class OrderController extends Controller
         $quantity = $request->validated('quantity');
 
         $order = $this->ticketOrderService->order($ticketTypeId, $quantity, Auth::id());
+
+        OrderPlaced::dispatch($order);
 
         return redirect()->route('events.show', $order->event_id)->with('success', 'Tickets purchased successfully.');
 
