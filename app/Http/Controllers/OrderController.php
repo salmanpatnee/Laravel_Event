@@ -47,8 +47,7 @@ class OrderController extends Controller
         $ticketTypeId = $request->validated('ticket_type_id');
         $quantity = $request->validated('quantity');
 
-        $orderId = $this->ticketOrderService->order($ticketTypeId, $quantity, Auth::id());
-        $order = Order::findOrfail($orderId);
+        $order = $this->ticketOrderService->order($ticketTypeId, $quantity, Auth::id());
 
         return redirect()->route('events.show', $order->event_id)->with('success', 'Tickets purchased successfully.');
 

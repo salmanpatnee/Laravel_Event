@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 
 class TicketOrderService
 {
-    public function order(int $ticketTypeId, int $quantity, int $userId): int
+    public function order(int $ticketTypeId, int $quantity, int $userId): Order
     {
         return DB::transaction(function () use ($ticketTypeId, $quantity, $userId) {
             $ticketType = TicketType::lockForUpdate()->findOrFail($ticketTypeId);
@@ -36,7 +36,7 @@ class TicketOrderService
                 ]);
             }
 
-            return $order->id;
+            return $order;
         });
     }
 }
