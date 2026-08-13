@@ -4,15 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
-use App\Models\Ticket;
-use App\Models\TicketType;
+use App\Services\TicketOrderService;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
+    public $ticketOrderService;
+
+    public function __construct(TicketOrderService $ticketOrderService)
+    {
+        $this->ticketOrderService = $ticketOrderService;
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -42,33 +45,13 @@ class OrderController extends Controller
         $this->authorize('create', Order::class);
 
         $ticketTypeId = $request->validated('ticket_type_id');
+        $quantity = $request->validated('quantity');
 
-        return DB::transaction(function () use ($request, $ticketTypeId) {
-            $ticketType = TicketType::lockForUpdate()->findOrFail($ticketTypeId);
-            $quantity = (int) $request->validated('quantity');
-            $available = $ticketType->remaining_quantity;
+        $orderId = $this->ticketOrderService->order($ticketTypeId, $quantity, Auth::id());
+        $order = Order::findOrfail($orderId);
 
-            if ($quantity > $available) {
-                throw ValidationException::withMessages([
-                    'quantity' => "Only {$available} ticket(s) remaining for {$ticketType->name}.",
-                ]);
-            }
+        return redirect()->route('events.show', $order->event_id)->with('success', 'Tickets purchased successfully.');
 
-            $order = Auth::user()->orders()->create([
-                'event_id' => $ticketType->event_id,
-                'total_amount' => $ticketType->price * $quantity,
-            ]);
-
-            for ($i = 0; $i < $quantity; $i++) {
-                Ticket::create([
-                    'order_id' => $order->id,
-                    'ticket_type_id' => $ticketType->id,
-                    'code' => Str::uuid(),
-                ]);
-            }
-
-            return redirect()->route('events.show', $ticketType->event_id)->with('success', 'Tickets purchased successfully.');
-        });
     }
 
     /**
