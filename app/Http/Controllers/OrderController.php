@@ -37,10 +37,12 @@ class OrderController extends Controller
      */
     public function store(StoreOrderRequest $request)
     {
+        
         $this->authorize('create', Order::class);
-
-        $ticketTypeId = $request->validated('ticket_type_id');
-        $quantity = $request->validated('quantity');
+        
+        $attributes = $request->validated();
+        $ticketTypeId = $attributes['ticket_type_id'];
+        $quantity = $attributes['quantity'];
 
         $order = $this->ticketOrderService->order($ticketTypeId, $quantity, Auth::id());
 

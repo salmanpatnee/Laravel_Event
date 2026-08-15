@@ -7,6 +7,7 @@ use App\Exceptions\TicketUnavailableException;
 use App\Models\Order;
 use App\Models\Ticket;
 use App\Models\TicketType;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -16,18 +17,19 @@ class TicketOrderService
     {
         $order = DB::transaction(function () use ($ticketTypeId, $quantity, $userId) {
             $ticketType = TicketType::lockForUpdate()->findOrFail($ticketTypeId);
-
+            $attendee = User::findOrFail($userId);
             $available = $ticketType->remaining_quantity;
 
             if ($quantity > $available) {
                 throw new TicketUnavailableException($ticketType, $quantity, $available);
             }
 
-            $order = Order::create([
-                'user_id' => $userId,
+            $order = $attendee->orders()->create([
                 'event_id' => $ticketType->event_id,
                 'total_amount' => $ticketType->price * $quantity,
             ]);
+
+            
 
             for ($i = 0; $i < $quantity; $i++) {
                 Ticket::create([
