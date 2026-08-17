@@ -3,6 +3,7 @@
 namespace App\Listeners;
 
 use App\Events\OrderPlaced;
+use App\Notifications\OrderConfirmation;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\Attributes\Backoff;
 use Illuminate\Queue\Attributes\Tries;
@@ -18,13 +19,7 @@ class LogOrderConfirmationStub implements ShouldQueue
      */
     public function handle(OrderPlaced $event): void
     {
-        sleep(3); // Simulate a delay for sending the email
-
-        Log::info('order.confirmation_stub', [
-            'order_id' => $event->order->id,
-            'user_id' => $event->order->user_id,
-            'message' => "Confirmation email would be sent to user {$event->order->user_id} for order {$event->order->id}.",
-        ]);
+        $event->order->user->notify(new OrderConfirmation($event->order));
     }
 
     /**
