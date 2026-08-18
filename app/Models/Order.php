@@ -12,11 +12,13 @@ class Order extends Model
         'event_id',
         'status',
         'total_amount',
+        'reminder_sent_at',
     ];
 
     protected $casts = [
         'total_amount' => 'decimal:2',
         'status' => OrderStatusEnum::class,
+        'reminder_sent_at' => 'datetime',
     ];
 
     public function user()
