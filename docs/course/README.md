@@ -32,8 +32,8 @@ later lessons may shift based on what the app actually needs by that point.
 | 08 | [Events & Listeners](08-events-listeners.md) — `OrderPlaced` | Implemented |
 | 09 | [Queues & Jobs](09-queues-jobs.md) — PDF generation, email, failed jobs | Implemented |
 | 10 | [Notifications & Mail](10-notifications-mail.md) — real order confirmation email | Implemented |
-| 11 | [Scheduling & Console Commands](11-scheduling-console.md) — reminders, exports | Ready |
-| 12 | Refunds & Cancellation — Observer vs explicit logic | Planned |
+| 11 | [Scheduling & Console Commands](11-scheduling-console.md) — reminders, exports | Implemented |
+| 12 | [Refunds & Cancellation](12-refunds-cancellation.md) — Observer vs explicit logic | Ready |
 | 13 | Caching — listings, dashboard aggregates | Planned |
 | 14 | Repository/DTO Evaluation — is the abstraction justified? | Planned |
 | 15 | Service Container & Contracts | Planned |
