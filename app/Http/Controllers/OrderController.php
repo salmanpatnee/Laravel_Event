@@ -56,6 +56,8 @@ class OrderController extends Controller
      */
     public function show(Order $order)
     {
+        $this->authorize('view', $order);
+
         $order->load(['event', 'tickets.ticketType']);
 
         return view('orders.show', compact('order'));
@@ -87,6 +89,8 @@ class OrderController extends Controller
 
     public function cancel(Order $order)
     {
+        $this->authorize('update', $order);
+
         $order->status = OrderStatusEnum::Cancelled;
         $order->save();
 
