@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\OrderStatusEnum;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 
 class Order extends Model
@@ -34,5 +35,17 @@ class Order extends Model
     public function tickets()
     {
         return $this->hasMany(Ticket::class);
+    }
+
+    public function refund()
+    {
+        return $this->hasOne(Refund::class);
+    }
+
+    protected function isOrderCancelled(): Attribute
+    {
+        return Attribute::get(
+            fn () => $this->status === OrderStatusEnum::Cancelled
+        );
     }
 }

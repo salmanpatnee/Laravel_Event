@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Events\OrderCancelled;
 use App\Events\OrderPlaced;
+use App\Exceptions\EventAlreadyStartedException;
+use App\Exceptions\OrderAlreadyCancelledException;
 use App\Exceptions\TicketUnavailableException;
 use App\Models\Order;
 use App\Models\Ticket;
@@ -45,5 +48,34 @@ class TicketOrderService
         OrderPlaced::dispatch($order);
 
         return $order;
+    }
+
+    public function cancel(int $orderId): Order
+    {
+        $order = DB::transaction(function () use ($orderId) {
+            $order = Order::lockForUpdate()->findOrFail($orderId);
+
+            if ($order->status === OrderStatusEnum::Cancelled) {
+                throw new OrderAlreadyCancelledException($order);
+            }
+
+            if ($order->event->start_time->isPast()) {
+                throw new EventAlreadyStartedException($order);
+            }
+
+            $order->status = OrderStatusEnum::Cancelled;
+            $order->save();
+
+            $order->refund()->create([
+                'amount' => $order->total_amount,
+            ]);
+
+            return $order;
+        });
+
+        OrderCancelled::dispatch($order);
+
+        return $order;
+
     }
 }

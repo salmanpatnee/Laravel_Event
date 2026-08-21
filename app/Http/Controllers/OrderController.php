@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
-use App\OrderStatusEnum;
 use App\Services\TicketOrderService;
 use Illuminate\Support\Facades\Auth;
 
@@ -91,8 +90,7 @@ class OrderController extends Controller
     {
         $this->authorize('update', $order);
 
-        $order->status = OrderStatusEnum::Cancelled;
-        $order->save();
+        $order = $this->ticketOrderService->cancel($order->id);
 
         return redirect()->route('orders.show', $order)->with('success', 'Order cancelled successfully.');
     }

@@ -54,12 +54,15 @@
         </table>
     </div>
 
-    <div class="mt-6">
-        <form method="POST" action="{{ route('orders.cancel', $order) }}">
-            @csrf
-            <button type="submit" class="cursor-pointer rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500">
-                Cancel Order
-            </button>
-        </form>
-    </div>
+    
+    @if(!$order->isOrderCancelled && !$order->event->iPastEvent)
+        <div class="mt-6">
+            <form method="POST" action="{{ route('orders.cancel', $order) }}">
+                @csrf
+                <button type="submit" class="cursor-pointer rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500">
+                    Cancel Order
+                </button>
+            </form>
+        </div>
+    @endif
 </x-layouts.app>

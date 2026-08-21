@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\OrderStatusEnum;
 use Database\Factories\TicketTypeFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -33,10 +34,15 @@ class TicketType extends Model
         return $this->hasMany(Ticket::class);
     }
 
+    public function activeTickets()
+    {
+        return $this->tickets()->whereHas('order', fn ($query) => $query->where('status', '!=', OrderStatusEnum::Cancelled));
+    }
+
     protected function remainingQuantity(): Attribute
     {
         return Attribute::get(
-            fn () => $this->quantity - ($this->tickets_count ?? $this->tickets()->count())
+            fn () => $this->quantity - ($this->active_tickets_count ?? $this->activeTickets()->count())
         );
     }
 }
