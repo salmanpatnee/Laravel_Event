@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Ticket;
 use App\Models\TicketType;
 use App\Models\User;
+use App\OrderStatusEnum;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -26,10 +27,9 @@ class TicketOrderService
 
             $order = $attendee->orders()->create([
                 'event_id' => $ticketType->event_id,
+                'status' => OrderStatusEnum::Confirmed,
                 'total_amount' => $ticketType->price * $quantity,
             ]);
-
-            
 
             for ($i = 0; $i < $quantity; $i++) {
                 Ticket::create([

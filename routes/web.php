@@ -15,6 +15,8 @@ Route::middleware('auth')->group(function () {
     Route::post('events/{event}/toggle-status', [EventController::class, 'toggleStatus'])->name('events.toggle-status');
 
     Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
+    Route::get('orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+    Route::post('orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
 });
 
 Route::resource('events', EventController::class)->only(['index', 'show']);

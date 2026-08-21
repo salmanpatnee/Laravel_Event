@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
+use App\OrderStatusEnum;
 use App\Services\TicketOrderService;
 use Illuminate\Support\Facades\Auth;
 
@@ -37,9 +38,9 @@ class OrderController extends Controller
      */
     public function store(StoreOrderRequest $request)
     {
-        
+
         $this->authorize('create', Order::class);
-        
+
         $attributes = $request->validated();
         $ticketTypeId = $attributes['ticket_type_id'];
         $quantity = $attributes['quantity'];
@@ -55,7 +56,9 @@ class OrderController extends Controller
      */
     public function show(Order $order)
     {
-        //
+        $order->load(['event', 'tickets.ticketType']);
+
+        return view('orders.show', compact('order'));
     }
 
     /**
@@ -80,5 +83,13 @@ class OrderController extends Controller
     public function destroy(Order $order)
     {
         //
+    }
+
+    public function cancel(Order $order)
+    {
+        $order->status = OrderStatusEnum::Cancelled;
+        $order->save();
+
+        return redirect()->route('orders.show', $order)->with('success', 'Order cancelled successfully.');
     }
 }
