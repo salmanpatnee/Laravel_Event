@@ -1,98 +1,150 @@
 # Memory — Laravel Progressive Architecture Training Course
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 ## What was built
 
-- **Lesson 12 (Refunds & Cancellation) fully implemented** and committed (`4c6d6d7`, `4100d00`,
-  `83948f9`), roadmap marked "Implemented" in `docs/course/README.md`:
-  - `resources/views/orders/show.blade.php` + `OrderController::show()`/`cancel()` + routes
-    (`orders.show`, `orders.cancel`) — order detail page with a cancel button.
-  - `app/Policies/OrderPolicy.php` — `view`/`update` restricted to `$user->id === $order->user_id`
-    (attendee-only; organizer cancel-on-behalf was explicitly left out of scope).
-  - `app/Models/Refund.php` + `database/migrations/..._create_refunds_table.php` (`order_id`,
-    `amount`, relies on `created_at` for "when" — no separate `refunded_at`).
-  - `TicketOrderService::cancel()` (`app/Services/TicketOrderService.php`) — locked, transactional,
-    idempotent (throws `OrderAlreadyCancelledException`), guards against cancelling an order whose
-    event has already started (throws new `EventAlreadyStartedException`), creates the `Refund`,
-    dispatches `OrderCancelled` outside the transaction (mirrors `order()`/`OrderPlaced`).
-  - `TicketType::activeTickets()` — new relation excluding tickets whose order is `Cancelled`; used by
-    both `remainingQuantity()`'s live-query fallback and `EventController::show()`'s
-    `withCount('activeTickets')` eager-load path, so inventory actually frees up on cancellation.
-  - `app/Listeners/SendRefundNotification.php` + `app/Notifications/RefundProcessed.php` (implements
-    `ShouldQueue`, same shape as `EventReminder`/`OrderConfirmation`) — sends refund email on
-    `OrderCancelled`.
-  - `Order::isOrderCancelled` attribute and `Event::iPastEvent` attribute (fixed — see Problems
-    Solved) — used in the view to show/hide the cancel button.
-- **Lesson 13 (Caching) drafted**: `docs/course/13-caching.md` — caching the public events listing
-  (`EventController::index()`) and a new (not-yet-built) per-event organizer sales dashboard
-  (tickets sold, net revenue). Core teaching point: explicit invalidation across multiple write paths
-  vs relying on TTL alone; this app's `database` cache driver doesn't support cache tags, so
-  invalidation must be explicit per-key. Roadmap updated to "Ready". Committed `6102d30`.
+Lesson 13 (Caching) — Section 8 Instructions points 1–5 implemented across two commits on `main`.
+
+**`9047f8c` — cache the events listing (points 1–2)**
+
+- `EventController::index()` wrapped in `Cache::remember('events.index', now()->addMinutes(5), ...)`,
+  caching the Eloquent collection untouched so `resources/views/events/index.blade.php` needed no
+  changes.
+- `Cache::forget('events.index')` via a private `forgetEventsIndexCache()` helper, called from
+  `store()`, `update()`, `destroy()`, `toggleStatus()`.
+- `config/cache.php` — `serializable_classes` changed from `false` to an allowlist of
+  `Collection`, `Event`, `TicketType`, `User` (see Problems Solved).
+
+**`889b6de` — cached organizer dashboard (points 3–5)**
+
+- `app/Http/Controllers/EventDashboardController.php` — `show()` authorizes via
+  `EventPolicy::update`, then `Cache::remember("event:{$event->id}:dashboard", now()->addHour(), ...)`.
+  Private `calculateStats()` runs three queries: ticket count through non-cancelled orders, order
+  sum, refund sum.
+- `resources/views/events/dashboard.blade.php` — two stat cards (tickets sold, net revenue).
+- `routes/web.php` — `events.dashboard` (`GET events/{event}/dashboard`) inside the `auth` group.
+- `TicketOrderService.php:49` and `:79` — `Cache::forget("event:{$order->event_id}:dashboard")` after
+  each transaction commits, before the event dispatch.
+- `EventController.php:95` — same forget in `destroy()`, capturing `$eventId` before the delete.
+- `resources/views/events/index.blade.php` — Dashboard link behind `@can('update', $event)`.
 
 ## Decisions made
 
-- **Cancellation resolved as explicit `TicketOrderService::cancel()`**, not an Observer — per Lesson
-  12's reasoning (only one real call site right now; bulk `update()` would silently skip an Observer
-  anyway).
-- **Cancelled tickets keep their rows**; `code`s are never reissued — true by construction, since every
-  new order calls `Ticket::create()` with a fresh `Str::uuid()`, not by any explicit "don't reuse"
-  check.
-- **Attendees only can cancel their own orders** — organizer force-cancel was explicitly scoped out for
-  now (Policy only checks order ownership).
-- **Cancellation blocked once the event has started** — added as `EventAlreadyStartedException`,
-  checked in `TicketOrderService::cancel()` (the user's call — chose service over policy).
-- **Lesson 13 will not use cache tags** — this app's cache driver is `database`, which (like `file`)
-  doesn't support tags; only `redis`/`memcached` do. Explicit `Cache::forget()` per key is the
-  only viable approach here, not a stylistic choice.
+- **Cache the Eloquent collection as-is for the listing**, not a flattened array — keeps the Blade
+  view unchanged and avoids partial models silently lazy-loading (which would re-create the N+1 the
+  eager load prevents). This is what forced the `serializable_classes` change.
+- **Allowlist four classes rather than `serializable_classes => true`** — deliberate, narrow trade of
+  Laravel 13 hardening for view convenience. Carbon is intentionally absent: datetime casts are
+  applied lazily from raw string attributes, so Carbon never appears in the serialized graph.
+- **Dashboard payload is scalars only** (`['tickets_sold' => int, 'net_revenue' => float]`) —
+  sidesteps the allowlist entirely. General rule going forward: cache aggregates as scalars.
+- **Net revenue = SUM(all orders.total_amount) − SUM(all refunds.amount), no status filter.** The
+  lesson text says "only for non-cancelled orders", which is self-contradictory in this schema —
+  `TicketOrderService::cancel()` is the only thing creating a `Refund` and does so while flipping the
+  order to `Cancelled`, so filtering leaves nothing to subtract. Summing everything is identical
+  today and stays correct if a partial refund ever lands on a live order.
+- **Event edits do NOT invalidate the dashboard key**; `destroy()` does, as cleanup only. Rationale:
+  invalidate exactly the write paths touching the data the value was computed from — name/venue/time
+  cannot move a revenue figure.
+- **No abstraction yet for the dashboard key** — the string is repeated at all four call sites on
+  purpose, as the input Section 9's refactoring exercise needs.
+- **Reused `EventPolicy::update` for dashboard authorization** rather than adding a `viewDashboard`
+  method — the rule is already exactly "owns this event".
+- TTLs: listing 5 minutes, dashboard 1 hour (longer because its invalidation covers every write path
+  and the recompute is the expensive one).
 
 ## Problems solved
 
-- **Order review found a real gap**: Section 3's business rule ("cancel an order for an event that
-  hasn't happened yet") wasn't enforced anywhere in the user's first pass — fixed by adding
-  `EventAlreadyStartedException` + a `start_time->isPast()` guard in `TicketOrderService::cancel()`.
-- **`Event::iPastEvent()` self-reference bug**: originally written as `$this->event->start_time`
-  inside the `Event` model itself (no `event` relation on `Event`, so `$this->event` was `null`,
-  throwing on `->start_time`). Fixed to `$this->start_time->isPast()`.
-- **Inverted boolean logic in the cancel-button `@if`**: was
-  `!$order->isOrderCancelled || $order->event->iPastEvent` (wrong in 2 of 4 cases — showed the button
-  for cancelled-but-past orders and hid it correctly only by accident). Fixed to
-  `!$order->isOrderCancelled && !$order->event->iPastEvent`. Also explains why the `iPastEvent` bug
-  above didn't surface immediately — `||` short-circuited past it whenever the order wasn't cancelled.
-- Minor smell flagged but not yet fixed: `OrderAlreadyCancelledException::render()` still attaches its
-  error to the `quantity` field key (copy-pasted from `TicketUnavailableException`, where it made
-  sense) — cosmetically works since the layout loops `$errors->all()`, but the key is misleading.
+- **Laravel 13's `serializable_classes` default broke the listing cache.** `config/cache.php` ships
+  `'serializable_classes' => false`, which passes `['allowed_classes' => false]` to `unserialize()`
+  in `DatabaseStore::unserialize()` (gadget-chain hardening for a leaked `APP_KEY`). Cached Eloquent
+  objects came back as `__PHP_Incomplete_Class`, so `@forelse ($events as $event)` iterated the
+  incomplete object's *properties* instead of the events — the first being the string
+  `'Illuminate\Database\Eloquent\Collection'`, producing "Attempt to read property 'name' on string"
+  at `index.blade.php:29`. Fails only on the cache-hit path, and the error points nowhere near the
+  cache. Fixed by the four-class allowlist.
+- **Wrong assumption in planning** — "Eloquent collections serialize into and out of cache fine" was
+  true through Laravel 12 but is false by default in 13. Verify this before recommending the
+  cache-the-model approach on any Laravel 13+ project.
+- **Two commit messages were mangled** by using PowerShell heredoc syntax (`@'...'@`) inside the Bash
+  tool, which left a stray `@` as the subject line and stripped inner quotes. Use `git commit -F
+  <file>` for multi-line messages in this environment.
 
 ## Current state
 
-- `main` is clean, all Lesson 12 work + Lesson 13 draft committed and pushed-ready (not yet confirmed
-  pushed to origin this session — verify before assuming remote is current).
-- Lesson 12: fully implemented, reviewed, and two review-found bugs fixed. No automated Pest test
-  written for cancellation yet (same open question carried since Lesson 10/11 — never settled as a
-  standing rule on whether manual verification is sufficient to mark a lesson "Implemented").
-- Lesson 13: drafted only, no implementation started. No organizer dashboard exists yet in the app —
-  Lesson 13's Instructions (Section 8) call for building a minimal one as part of the caching work.
-- Still-open from earlier lessons, untouched this session: 27 failed jobs in `failed_jobs` from a
-  prior SMTP-unavailable test run (harmless, needs Mailpit start + `queue:retry all`).
+- `main` is clean and **2 commits ahead of `origin/main`** — `9047f8c` and `889b6de` are NOT pushed.
+- Lesson 13 Section 8: points 1–5 done. **Point 6 (the test proving invalidation) is outstanding** —
+  invalidation was verified only by a one-off tinker run, so nothing in the suite would catch a
+  regression.
+- Verified this session (not automated): cold read caches; placing a 2-ticket order invalidates and
+  moves the numbers +2 / +98.00; cancelling invalidates and returns both figures exactly to baseline;
+  over HTTP owner 200, non-owner 403, guest 302 to login.
+- `php artisan test --compact` — 4 passed, **1 failed**: `tests/Feature/OrderPurchaseTest.php:112`
+  ("it oversells a ticket type when two purchases race past the naive availability check") fails with
+  "Failed asserting that 2 is identical to 1". **Pre-existing and unrelated** — confirmed by stashing
+  and re-running on a clean tree. The test asserts overselling happens; Lesson 07's row locking made
+  it stop, so the expectation is stale.
+- `docs/course/13-caching.md` is unchanged and now has two known gaps (see Next session).
+- Carried over untouched: 27 failed jobs in `failed_jobs` from a prior SMTP-unavailable run (needs
+  Mailpit start + `queue:retry all`); `OrderAlreadyCancelledException::render()` still attaches its
+  error to the `quantity` field key instead of something accurate like `order`.
 
 ## Next session starts with
 
-1. User implements Lesson 13 (cache `EventController::index()`, build the per-event organizer
-   dashboard, cache its aggregate, wire explicit `Cache::forget()` invalidation into
-   `TicketOrderService::order()`, `TicketOrderService::cancel()`, and relevant `EventController`
-   actions) — review against Section 8/9's instructions once shared.
-2. Optional cleanup carried over (low priority): fix `OrderAlreadyCancelledException`'s error key from
-   `quantity` to something accurate like `order`; clear the 27 failed test jobs.
-3. After Lesson 13 lands: mark it "Implemented" and decide on Lesson 14 (Repository/DTO Evaluation).
+Mid-discussion on **Section 9 (Refactoring)** — no code written yet. All four dashboard-key call
+sites are now visible:
+
+```
+EventDashboardController.php:21   remember  "event:{$event->id}:dashboard"
+TicketOrderService.php:49         forget    "event:{$order->event_id}:dashboard"
+TicketOrderService.php:79         forget    "event:{$order->event_id}:dashboard"
+EventController.php:95            forget    "event:{$eventId}:dashboard"
+```
+
+The stated defect is not verbosity — it's that the same string is built three different ways from
+three differently-named variables, so a typo yields a `forget()` on a key nobody reads: no error, no
+failing test, just a number that quietly stops updating. Options laid out: (A) leave it, (B) an
+`EventDashboardCache` class owning key/read/forget, (C) an `Order` observer, (D) a listener on the
+existing `OrderPlaced`/`OrderCancelled` events. Recommended B now, D later if a fourth order-write
+path appears, not C.
+
+**The user's last question, unanswered: would a private method inside `TicketOrderService` be
+enough?** Answer given: it collapses 4 sites to 3 but can't cross class boundaries, so the read
+(`EventDashboardController`) and the delete forget (`EventController`) still build the key
+independently — and it makes the code look refactored while the cross-class disagreement remains.
+The user had not yet chosen a direction. Offer to show B and the private-method version side by side.
+
+Then, in rough priority:
+
+1. Section 8 point 6 — the Pest test proving invalidation (place order → assert dashboard reflects it
+   → cancel → assert the *next* read reflects the cancellation).
+2. Update `docs/course/13-caching.md` with two findings from this session: the `serializable_classes`
+   trap (as a second driver constraint in §6, alongside cache tags) and the revenue-formula
+   contradiction in §8 point 3.
+3. Fix or retire the stale `OrderPurchaseTest.php:112` oversell test.
+4. Push `main` to `origin` (2 commits behind remote).
+5. Mark Lesson 13 "Implemented" in `docs/course/README.md`, then decide on Lesson 14
+   (Repository/DTO Evaluation).
 
 ## Open questions
 
-- Whether an organizer should ever be allowed to cancel orders for their own events — left open in
-  Lesson 12, still unresolved, may resurface if Lesson 13's dashboard work or a later lesson needs it.
-- Whether the per-event dashboard cache invalidation should live inline in each write path (current
-  plan) or get centralized (an `Event` observer or a dedicated cache-owning class) once all the call
-  sites are visible — Lesson 13 Section 9 explicitly defers this decision until the duplication is
-  real, not before.
-- Standing question, carried across several lessons now: whether manual CLI/browser verification is
-  sufficient to mark a lesson "Implemented," or whether an automated Pest test should be required
-  going forward.
+- **Section 9's direction is undecided** — private method vs `EventDashboardCache` class. The
+  tiebreaker offered: if the dashboard read is ever likely to move (Livewire component, API resource,
+  scheduled report), the cross-class problem worsens and the class is clearly right; if the read stays
+  in one controller forever, the private method is defensible.
+- **The lesson doc's `Event` observer suggestion in §9 is wrong for this key** and needs correcting —
+  the dashboard is invalidated by `Order`/`Refund` writes, not `Event` writes, so an `Event` observer
+  watches a model whose writes we explicitly decided are irrelevant. If an observer is ever used here
+  it must be on `Order` and must implement `ShouldHandleEventsAfterCommit`, or it fires inside
+  `DB::transaction()` and opens a race where a concurrent read repopulates the cache with pre-commit
+  data and it stays stale until TTL.
+- **A queued listener must never own cache invalidation** — noted because `LogOrderConfirmationStub`
+  is `ShouldQueue`; async invalidation leaves the dashboard stale until a worker runs.
+- **The `serializable_classes` allowlist is now a maintenance burden** — every new cached payload
+  containing objects must add its classes, or it silently returns incomplete objects rather than
+  erroring at write time.
+- Standing, carried across several lessons: whether manual CLI/browser verification is sufficient to
+  mark a lesson "Implemented," or whether an automated Pest test should be required.
+- Carried from Lesson 12: whether an organizer should ever be allowed to cancel orders for their own
+  events.
