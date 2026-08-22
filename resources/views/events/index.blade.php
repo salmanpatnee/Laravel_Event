@@ -44,6 +44,8 @@
                                 <a href="{{ route('events.show', $event) }}"
                                     class="font-medium text-gray-600 hover:text-gray-900">View</a>
                                 @can('update', $event)
+                                    <a href="{{ route('events.dashboard', $event) }}"
+                                        class="font-medium text-gray-600 hover:text-gray-900">Dashboard</a>
                                     <a href="{{ route('events.edit', $event) }}"
                                         class="font-medium text-gray-600 hover:text-gray-900">Edit</a>
                                 @endcan

@@ -12,6 +12,7 @@ use App\Models\Ticket;
 use App\Models\TicketType;
 use App\Models\User;
 use App\OrderStatusEnum;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -45,6 +46,8 @@ class TicketOrderService
             return $order;
         });
 
+        Cache::forget("event:{$order->event_id}:dashboard");
+
         OrderPlaced::dispatch($order);
 
         return $order;
@@ -72,6 +75,8 @@ class TicketOrderService
 
             return $order;
         });
+
+        Cache::forget("event:{$order->event_id}:dashboard");
 
         OrderCancelled::dispatch($order);
 

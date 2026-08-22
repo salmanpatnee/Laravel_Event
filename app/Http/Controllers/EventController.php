@@ -86,9 +86,13 @@ class EventController extends Controller
     {
         $this->authorize('delete', $event);
 
+        $eventId = $event->id;
+
         $event->delete();
 
         $this->forgetEventsIndexCache();
+
+        Cache::forget("event:{$eventId}:dashboard");
 
         return redirect()->route('events.index')->with('success', 'Event deleted successfully.');
     }

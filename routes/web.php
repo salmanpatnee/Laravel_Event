@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\EventController;
+use App\Http\Controllers\EventDashboardController;
 use App\Http\Controllers\OrderController;
 use Illuminate\Support\Facades\Route;
 
@@ -13,6 +14,7 @@ Route::get('/', function () {
 Route::middleware('auth')->group(function () {
     Route::resource('events', EventController::class)->except(['index', 'show']);
     Route::post('events/{event}/toggle-status', [EventController::class, 'toggleStatus'])->name('events.toggle-status');
+    Route::get('events/{event}/dashboard', [EventDashboardController::class, 'show'])->name('events.dashboard');
 
     Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
     Route::get('orders/{order}', [OrderController::class, 'show'])->name('orders.show');
