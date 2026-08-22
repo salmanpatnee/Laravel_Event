@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreEventRequest;
 use App\Http\Requests\UpdateEventRequest;
 use App\Models\Event;
+use Illuminate\Support\Facades\Cache;
 
 class EventController extends Controller
 {
@@ -13,7 +14,9 @@ class EventController extends Controller
      */
     public function index()
     {
-        $events = Event::with('ticketTypes', 'organizer')->orderBy('start_time', 'asc')->get();
+        $events = Cache::remember('events.index', now()->addMinutes(5), function () {
+            return Event::with('ticketTypes', 'organizer')->orderBy('start_time', 'asc')->get();
+        });
 
         return view('events.index', compact('events'));
     }
@@ -36,6 +39,8 @@ class EventController extends Controller
         $this->authorize('create', Event::class);
 
         $event = $request->user()->events()->create($request->validated());
+
+        $this->forgetEventsIndexCache();
 
         return redirect()->route('events.show', $event)->with('success', 'Event created successfully.');
     }
@@ -69,6 +74,8 @@ class EventController extends Controller
 
         $event->update($request->validated());
 
+        $this->forgetEventsIndexCache();
+
         return redirect()->route('events.show', $event)->with('success', 'Event updated successfully.');
     }
 
@@ -81,6 +88,8 @@ class EventController extends Controller
 
         $event->delete();
 
+        $this->forgetEventsIndexCache();
+
         return redirect()->route('events.index')->with('success', 'Event deleted successfully.');
     }
 
@@ -92,6 +101,16 @@ class EventController extends Controller
 
         $event->save();
 
+        $this->forgetEventsIndexCache();
+
         return redirect()->route('events.index');
+    }
+
+    /**
+     * Invalidate the cached events listing after any write that changes what it shows.
+     */
+    private function forgetEventsIndexCache(): void
+    {
+        Cache::forget('events.index');
     }
 }

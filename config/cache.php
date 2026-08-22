@@ -1,5 +1,9 @@
 <?php
 
+use App\Models\Event;
+use App\Models\TicketType;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 
 return [
@@ -129,8 +133,19 @@ return [
     | storage. By default, no PHP classes will be unserialized from your
     | cache to prevent gadget chain attacks if your APP_KEY is leaked.
     |
+    | The classes below are allowlisted because the cached events listing
+    | ('events.index') stores an Eloquent collection of Event models with
+    | their ticketTypes and organizer relations eager loaded. Every class
+    | that can appear in a cached payload must be listed here, or it will
+    | come back as __PHP_Incomplete_Class.
+    |
     */
 
-    'serializable_classes' => false,
+    'serializable_classes' => [
+        Collection::class,
+        Event::class,
+        TicketType::class,
+        User::class,
+    ],
 
 ];
